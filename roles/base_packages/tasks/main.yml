@@ -1,0 +1,176 @@
+---
+- name: "Setup base packages"
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ base_packages }}"
+  become: true
+
+- name: "Add a new file to uptdate-motd"
+  copy:
+    content: |
+      #!/bin/sh
+      neofetch
+      echo "Welcome to {{ ansible_hostname }}!"
+      echo "This machine is managed by Ansible."
+    dest: /etc/update-motd.d/99-header
+    mode: 0755   
+  become: true
+
+- name: "Add k8s repo key"
+  apt_key:
+    url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+    keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    state: present
+  become: true
+
+- name: "Add k8s repo"
+  apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /
+    state: present
+    filename: kubernetes
+    update_cache: yes
+  become: true
+
+- name: "Install k8s packages"
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ k8s_packages }}"
+  become: true
+
+- name: "Download openTofu"
+  get_url:
+    url: "https://github.com/opentofu/opentofu/releases/download/v1.6.0-alpha2/tofu_1.6.0-alpha2_amd64.deb"
+    dest: "/tmp/tofu_1.6.0-alpha2_amd64.deb"
+    mode: 0644
+  become: true
+
+- name: "Install openTofu"
+  apt:
+    deb: "/tmp/tofu_1.6.0-alpha2_amd64.deb"
+    state: present
+  become: true
+
+- name: "Enable kernel modules required"
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+  become: true
+
+- name: "Add a new file to /etc/sysctl.d for k8s"
+  copy:
+    content: |
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.ipv4.ip_forward = 1
+    dest: /etc/sysctl.d/k8s.conf
+    mode: 0644
+  become: true
+
+- name: "Reload sysctl"
+  shell: sysctl --system
+  become: true
+
+- name: "Add docker repo key"
+  apt_key:
+    url: https://download.docker.com/linux/debian/gpg
+    state: present
+  become: true
+
+- name: "Add docker repo"
+  apt_repository:
+    repo: deb [arch=amd64] https://download.docker.com/linux/debian bookworm stable
+    state: present
+    filename: docker.list
+    update_cache: yes
+  become: true
+
+- name: "Install docker packages"
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ docker_packages }}"
+  become: true
+
+- name: "Add user to docker group"
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes
+  become: true
+
+- name: "Enable containerd service"
+  service:
+    name: containerd
+    enabled: yes
+    state: started
+  become: true
+
+- name: "Enable docker service"
+  service:
+    name: docker
+    enabled: yes
+    state: started
+  become: true
+
+- name: Create directories if it does not exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /mnt/google_homelab
+    - /mnt/google_alexdiashomelab
+  become: true
+
+- name: Create directories for rclone if it does not exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_ssh_user }}"
+    group: "{{ ansible_ssh_user }}"
+  loop:
+    - /mnt/google_homelab
+    - /mnt/google_alexdiashomelab
+    - /opt/rclone/logs
+  become: true
+
+- name: "Copy rclone config"
+  copy:
+    src: rclone.conf
+    dest: "{{ item }}"
+    mode: 0644
+  loop:
+    - /home/{{ ansible_ssh_user }}/.config/rclone/rclone.conf
+    - /root/.config/rclone/rclone.conf
+  become: true
+
+- name: "Add rclone services"
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: 0644
+  loop:
+    - rclone-google_homelab.service
+    - rclone-google_alexdiashomelab.service
+  become: true
+
+- name: "Reload systemd"
+  systemd:
+    daemon_reload: yes
+  become: true
+
+- name: "Enable rclone services"
+  service:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - rclone-google_homelab.service
+    - rclone-google_alexdiashomelab.service
+  become: true
