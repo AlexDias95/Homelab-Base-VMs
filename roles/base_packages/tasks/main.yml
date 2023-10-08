@@ -117,6 +117,18 @@
     state: started
   become: true
 
+#- name: "Disable cgroup v2"
+#  lineinfile:
+#    path: /etc/default/grub
+#    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+#    line: 'GRUB_CMDLINE_LINUX_DEFAULT="systemd.unified_cgroup_hierarchy=0"'
+#    state: present
+#  become: true
+
+#- name: "Update grub"
+#  shell: update-grub
+#  become: true 
+
 - name: Create directories if it does not exist
   ansible.builtin.file:
     path: "{{ item }}"

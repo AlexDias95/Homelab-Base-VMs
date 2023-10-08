@@ -8,6 +8,9 @@ base_packages:
   - software-properties-common
   - git
   - ufw
+  - open-iscsi
+  - nfs-common
+  - nfs-kernel-server
   - python3-pip
   - python3-venv
   - python3-dev
