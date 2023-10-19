@@ -150,6 +150,8 @@
     - /mnt/google_homelab
     - /mnt/google_alexdiashomelab
     - /opt/rclone/logs
+    - /home/alex/.config/rclone
+    - /root/.config/rclone/
   become: true
 
 - name: "Copy rclone config"
